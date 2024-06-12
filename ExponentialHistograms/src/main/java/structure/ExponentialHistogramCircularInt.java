@@ -21,19 +21,19 @@ class Pair {
 
 
 public class ExponentialHistogramCircularInt implements slidingwindow {
-	final int k;
-	final int halfk;
-	final double epsilon;
+	int k;
+	int halfk;
+	double epsilon;
 	//final int maxNumberOfBuckets;
-	public final cBufferInt bucketWallclockTimes[]; // the creation time of each bucket (in timestamp/wallclock time)
-	final int windowSize;
+	public cBufferInt[] bucketWallclockTimes; // the creation time of each bucket (in timestamp/wallclock time)
+	int windowSize;
 	int numberOfLevels=0;
 	int currentRealtime=0;
 	public int numberOfBuckets=0;
 	int lastOneUpdate=0;
-	final int maxNumberOfBucketsOfTheSameSize;
-	final int maxNumberOfBucketsOfSize1;
-	final long maxEvents;
+	int maxNumberOfBucketsOfTheSameSize;
+	int maxNumberOfBucketsOfSize1;
+	long maxEvents;
 	private int lastSyncedTime;
 
 	public int getLastSyncedTime() {
@@ -46,91 +46,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		this.lastSyncedTime=t;
 	}
 
-	
-	static void testSingle() {
-		int repeats=10;
-		int delta=0;
-		int maxNumberOfEvents=10000;
-		Random rn = new Random(1234);
-		int windowSize=0;
-
-		StreamConstructor sc = new StreamConstructor(rn.nextInt());
-		
-		double maxerror=0;
-		for (float epsilon=0.025f;epsilon<0.21;epsilon+=0.025) {
-			for (int repeat=0;repeat<repeats;repeat++) {
-				int numberOfEvents = Math.max(1000, rn.nextInt(maxNumberOfEvents));
-				Stream stream = sc.constructUniformStream(numberOfEvents);// sc.constructPoissonStream(numberOfEvents, rn.nextInt(10000));
-				windowSize = Math.max(windowSize, stream.getCurrentTime());
-				ExponentialHistogramCircularInt dw = new ExponentialHistogramCircularInt(epsilon, windowSize, maxNumberOfEvents);
-//				ExponentialHistogramDeque dw2 = new ExponentialHistogramDeque(epsilon, windowSize, maxNumberOfEvents);
-				dw.batchUpdate(stream);
-//				dw2.batchUpdate(stream);
-				// execute queries now
-				Event[] events = stream.getEvents();				
-				final int numberOfQueries = events.length;
-				int[] queryTimes = new int[numberOfQueries];
-				int j=numberOfQueries;
-				for (Event e:events) {
-					switch(delta) {
-						case 0:
-							queryTimes[j-1]=e.getTime();
-							break;
-						case 1:
-							queryTimes[j-1]=e.getTime()+1;
-							break;
-						case -1:
-							queryTimes[j-1]=e.getTime()-1;
-							break;
-					}
-					j--;
-				}
-
-				
-				int[] accurateAnswers = new int[numberOfQueries]; // accurateAnswers is usually like 1,2,3,4,5... but in case of 
-				  // multiple events at the same timestamp, this may not be the case. So we recompute it
-				for (int cnt = 0; cnt < numberOfQueries; cnt++) {
-					int i = events.length;
-					int qt = queryTimes[cnt];
-					while (i > 0 && events[i - 1].comesAtOrAfter(qt)) {
-						if (events[i - 1].getEvent())
-							accurateAnswers[cnt]++;
-						i--;
-					}
-				}
-				double maxError = 0;
-				//System.err.println(dw);
-				// i have the ground truth, now execute the queries
-				for (int cnt = 0; cnt < numberOfQueries; cnt++) {
-					int qt = queryTimes[cnt];
-//					System.err.println("Accurate answer is " + accurateAnswers[cnt]);
-					double est = dw.getEstimationRealtime(qt);
-//					double est2 = dw2.getEstimationRealtime(qt);
-//					if (Math.abs(est-est2)>0.001)
-//						System.err.println("Problem here");
-					double err = Math.abs(est - accurateAnswers[cnt]) / accurateAnswers[cnt];
-//					if (err>0) { 
-//						System.err.println("Repeat " + err);
-//						dw.getEstimationRealtime(qt);
-//					}
-					if (accurateAnswers[cnt] == 0)
-						err = Math.abs(est - accurateAnswers[cnt]);
-					if (err > epsilon) {
-						System.err.print("\n\nQuery " + qt + " Estimated "
-								+ est + " Real " + accurateAnswers[cnt] 
-								+ " Err " + err);
-						System.err.print("   epsilon " + epsilon
-								+ " maxNumberOfEvents " + maxNumberOfEvents);
-
-						est = dw.getEstimationRealtime(qt);
-					}
-					maxError = Math.max(err, maxError);
-				}
-				maxerror=Math.max(maxerror, maxError);
-			}
-			System.err.println("Maximum error is " + maxerror + " and allowed is "+ epsilon);
-		}
-	}
 	public String toString() {
 		StringBuilder sb = new StringBuilder();
 		sb.append("Levels:" + numberOfLevels);
@@ -138,55 +53,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 			sb.append("[ L" + i + " : " + this.bucketWallclockTimes[i] + " ]");
 		}
 		return sb.toString();
-	} 
-	
-	public static void main(String[]args) {
-		Random rn = new Random(123);
-		int queryLength=10;
-		double epsilon=0.5;
-		ExponentialHistogramCircularInt ex = new ExponentialHistogramCircularInt(epsilon, queryLength, 1000);
-		boolean[] events = new boolean[100];
-		for (int i=0;i<100;i++) {
-			if (rn.nextBoolean()) {
-				events[i] = true;
-				ex.addAOne(i);
-			}
-			int realAnswer=0;
-			if (i>queryLength) {
-				for (int j=i;j>=i-queryLength;j--) if (events[j]) realAnswer++;
-				System.err.print("Time " + i + "  startTime  "+ (i-queryLength) + " Real answer " + realAnswer);
-				System.err.println("  I=" + i + " " + ex.getEstimationRealtimeWithExpiryTime(i-queryLength, queryLength) + " | " + ex);
-			}
-		}
-	}
-	public static void main2(String[]args) {
-		long time1=System.currentTimeMillis();
-		Random rn = new Random(123);
-		int queryLength=5;
-		double epsilon=0.1;
-//		ExponentialHistogramDeque ex = new ExponentialHistogramDeque(epsilon, queryLength, 1000);
-		ExponentialHistogramCircularInt ex = new ExponentialHistogramCircularInt(epsilon, queryLength, 1000);
-		boolean[] events = new boolean[1000000];
-		for (int i=0;i<events.length;i++) {
-			if (rn.nextBoolean()) {
-				events[i] = true;
-				ex.addAOne(i);
-			}
-			double ans=0;
-			for (int c=i;c>=i-queryLength;c--) {
-				if (c<0) break;
-				if (events[c]) ans++;
-			}
-			double v = ex.getEstimationRealtime(i-queryLength);
-			if ((Math.abs(v-ans)/ans)>epsilon) {
-				System.err.println("Check " + (Math.abs(v-ans)/ans) + " at round " + i);
-				System.err.println(ex);
-				v = ex.getEstimationRealtime(i-queryLength+1);
-			}
-		}
-//		ex.getEstimationRealtimeWithExpiration(10000-100);
-		long time2 = System.currentTimeMillis()-time1;
-		System.err.println("Total time: " + (time2)/1000);
 	}
 	
 	public int getNumberOfInterrupts() {
@@ -194,8 +60,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		return interrupts;
 	}
 
-	
-	
 	public static ExponentialHistogramCircularInt mergeEHs(ExponentialHistogramCircularInt[] ehs, double epsilon, int windowSize) {
 		// now merge
 		int totalEvents=0; int totalInterrupts=0;
@@ -254,7 +118,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		this.k = exponentialHistogramCircularInt.k;
 		this.halfk = exponentialHistogramCircularInt.halfk;
 		this.windowSize=exponentialHistogramCircularInt.windowSize;
-//		this.maxNumberOfBuckets=eh.maxNumberOfBuckets;
 		this.bucketWallclockTimes=new cBufferInt[50];
 		for (int i=0;i<exponentialHistogramCircularInt.bucketWallclockTimes.length;i++) {
 			if (exponentialHistogramCircularInt.bucketWallclockTimes[i]!=null) this.bucketWallclockTimes[i] = exponentialHistogramCircularInt.bucketWallclockTimes[i].clone();
@@ -262,7 +125,19 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		this.numberOfLevels=exponentialHistogramCircularInt.numberOfLevels;
 		maxNumberOfBucketsOfTheSameSize=exponentialHistogramCircularInt.maxNumberOfBucketsOfTheSameSize;
 		maxNumberOfBucketsOfSize1=exponentialHistogramCircularInt.maxNumberOfBucketsOfSize1;
-//		this.expirations = (TreeMap<Integer, LinkedList<Integer>>)eh.expirations.clone();
+	}
+
+	public void initSketch(double epsilon, int windowSize,  long maxEvents) {
+		this.epsilon=epsilon;
+		this.maxEvents=maxEvents;
+		this.k = (int)Math.ceil(1d/epsilon);
+		this.halfk = (int)Math.ceil(k/2d);
+		this.windowSize=windowSize;
+		this.bucketWallclockTimes=new cBufferInt[50];
+		maxNumberOfBucketsOfTheSameSize=halfk+1;
+		maxNumberOfBucketsOfSize1=k+1;
+		this.bucketWallclockTimes[0]=new cBufferInt(maxNumberOfBucketsOfSize1+1);
+		this.numberOfLevels++;
 	}
 	
 	public ExponentialHistogramCircularInt(double epsilon, int windowSize,  long maxEvents) {
@@ -271,18 +146,10 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		this.k = (int)Math.ceil(1d/epsilon);
 		this.halfk = (int)Math.ceil(k/2d);
 		this.windowSize=windowSize;
-//		int b=(int) Math.ceil((k/2d+1)*(Math.log(2d*maxEvents/k)/Math.log(2)+2))+1;
-//		if (b<=0) 
-//			this.maxNumberOfBuckets=(int)maxEvents+1; // this happens when maxevents is very small 
-//		else 
-//			this.maxNumberOfBuckets=b;
 		this.bucketWallclockTimes=new cBufferInt[50];
 		maxNumberOfBucketsOfTheSameSize=halfk+1;
 		maxNumberOfBucketsOfSize1=k+1;
 		this.bucketWallclockTimes[0]=new cBufferInt(maxNumberOfBucketsOfSize1+1);
-//		for (int cnt=1;cnt<this.bucketWallclockTimes.length;cnt++){
-//			this.bucketWallclockTimes[cnt]=new cBufferInt(maxNumberOfBucketsOfTheSameSize+1);
-//		}
 		this.numberOfLevels++;
 	}
 
@@ -298,24 +165,18 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 	public void removeExpiredWithExpiryTime(final int expiryTime) { // current time is measured in timestamps
 		if (numberOfBuckets<=1||expiryTime<0) return;
 		int nextLevelToCheck = numberOfLevels-1;
-		int nextItemToCheck = 1;
+		int nextItemToCheck;
 		while (nextLevelToCheck>=0) {
-			nextItemToCheck=1;
-			if (bucketWallclockTimes[nextLevelToCheck].size()<2) {
+			nextItemToCheck = 1;
+			int levelToDelete = nextLevelToCheck;
+			if (bucketWallclockTimes[nextLevelToCheck].size() < 2) {
 				nextLevelToCheck--;
-				nextItemToCheck=0;
-				if (nextLevelToCheck==-1 || bucketWallclockTimes[nextLevelToCheck].size()==0) break;
-				if (bucketWallclockTimes[nextLevelToCheck].get(nextItemToCheck)<expiryTime)
-					deleteFirstBucket(nextLevelToCheck+1);
-				else 
-					break;			
+				nextItemToCheck = 0;
+				if (nextLevelToCheck == -1 || bucketWallclockTimes[nextLevelToCheck].size() == 0) break;
+				levelToDelete = nextLevelToCheck + 1;
 			}
-			else if (bucketWallclockTimes[nextLevelToCheck].size()>=2){
-				if (bucketWallclockTimes[nextLevelToCheck].get(nextItemToCheck)<expiryTime)
-					deleteFirstBucket(nextLevelToCheck);
-				else 
-					break;			
-			}
+			if (bucketWallclockTimes[nextLevelToCheck].get(nextItemToCheck) >= expiryTime) break;
+			deleteFirstBucket(levelToDelete);
 		}
 	}
 	
@@ -328,40 +189,45 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 			if (bucketWallclockTimes[level].isEmpty() && numberOfLevels>0) numberOfLevels--;
 			if (level==-1) break;
 		}
-
-//		if (numberOfBuckets<=1||expiryTime<0) return;
-//		int level=numberOfLevels-1;
-//		while (!bucketWallclockTimes[level].isEmpty() && bucketWallclockTimes[level].getFirst()<expiryTime) {
-//			// distinguish between the case that this is the first bucket that its starttime is expired (it needs to be kept), or not the first 
-//			if (bucketWallclockTimes[level].size()>1) {
-//				deleteFirstBucket(level);
-//			} else if (bucketWallclockTimes[level].size()==1 && level>0 &&bucketWallclockTimes[level-1].getFirst()<expiryTime) {
-//				deleteFirstBucket(level);
-//				level--;
-//			} else {
-//				level--;
-//			}
-//			if (level==-1) break;
-//		}
-	}
-
-	
-	public void batchUpdate(Stream s) {
-		for (Event e:s.getEvents()) {
-			if (e.event)
-				this.addAOne(e.time);
-			else
-				this.addAZero(e.time);
-		}
 	}
 
 	public int getCurrentRealtime() {
 		return currentRealtime;
 	}
+
+	public void batchUpdate(Stream s) {
+		for (Event e:s.getEvents()) {
+			add(e);
+		}
+	}
+
+	// TODO: Add on interface
+	public void add(int time) {
+		add(new Event(true, time)); // Assuming you have a constructor for Event that takes a boolean and an int
+	}
+
+	public void add(Event e) {
+		if (e.event)
+			this.addAOne(e.time);
+		else
+			this.addAZero(e.time);
+	}
+
 	public void addAZero(int time) {
 		currentRealtime=time;
-//		if (removeExpired) 
 		removeExpiredWithExpiryTime(currentRealtime-windowSize);
+		updateTriggers();
+	}
+
+	public void addAOne(int time) {
+		currentRealtime=time;
+		lastOneUpdate=time;
+		removeExpiredWithExpiryTime(currentRealtime-windowSize);
+		// BUCKET 0 is tmp by convention
+		bucketWallclockTimes[0].addLast(currentRealtime);
+		// and now merge if needed
+		numberOfBuckets++;
+		mergeIfNeeded(currentRealtime-windowSize);
 		updateTriggers();
 	}
 
@@ -421,25 +287,12 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		} else {
 			if (originalPos<0) 
 				pos--;
-//			while (bucketWallclockTimes[level].get(pos)==startTime && pos>0) pos--; pos++;// find the first element with this time.
-			
+
 			lastOfferedExpirationTime = bucketWallclockTimes[level].get(pos+1);
 			return lastOfferedExpirationTime;
 		}
 	}
-	//final boolean removeExpired=true;
-	public void addAOne(int time) {
-		currentRealtime=time;
-		lastOneUpdate=time;
-//		if (removeExpired) 
-		removeExpiredWithExpiryTime(currentRealtime-windowSize);
-		// BUCKET 0 is tmp by convention
-		bucketWallclockTimes[0].addLast(currentRealtime);
-		// and now merge if needed
-		numberOfBuckets++;
-		mergeIfNeeded(currentRealtime-windowSize);
-		updateTriggers();
-	}
+
 
 	private void mergeIfNeeded(int expiryTime) {
 		int level=0;
@@ -466,6 +319,7 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 				break;
 		}
 	}
+
 	public void updateTriggers() {
 		
 	}
@@ -499,13 +353,16 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 			}
 		}
 	}
+
+	public double query(int queryParameter) {
+		return getEstimationRealtime(queryParameter);
+	}
 		
 	public double getEstimationRealtime(int startTime) {
 		double est=0;
 		int level=0;
 		int pow = 1;
 		while (bucketWallclockTimes[level] != null && bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
-//			est+=Math.pow(2, level)*bucketWallclockTimes[level].size();
 			est+=pow*bucketWallclockTimes[level].size();
 			level++;
             pow*=2;
@@ -517,7 +374,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		int pos=originalPos;
 		if (pos<0) pos=-pos-1;
 		if (bucketWallclockTimes[level]==null || pos==bucketWallclockTimes[level].size()) {
-//			int levelBucketSize=(int)Math.pow(2, level);
 			int levelBucketSize=pow;
 			if (bucketWallclockTimes[level]!=null && bucketWallclockTimes[level].size()>0) est+=levelBucketSize/2;
 			return est;
@@ -525,12 +381,87 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 			if (originalPos<0) 
 				pos--;
 			while (bucketWallclockTimes[level].get(pos)==startTime) pos--; pos++;// find the first element with this time.
-//			int levelBucketSize=(int)Math.pow(2, level);
 			int levelBucketSize=pow;
 			est+=(bucketWallclockTimes[level].size()-pos)*levelBucketSize;
 			if (levelBucketSize!=1) est+=levelBucketSize/2;
 			return est;
 		}
+	}
+
+	public Pair getEstimationRealtimeWithExpiryTime(int startTime, int queryLength) {
+		double est=0;
+		int level=0;
+		int pow = 1;
+		if (bucketWallclockTimes[0].size()==0) return new Pair(-1, 0); // actually nothing will ever expire from am empty EH!
+		while (bucketWallclockTimes[level]!=null && bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
+			est+=pow*bucketWallclockTimes[level].size(); // these are the fully-covered rows!
+			level++;
+			pow*=2;
+		}
+		int pos;
+		if (level<numberOfLevels) { // non-empty level, add part of it!
+			int expiryTimeOfTheEstimate;
+			int originalPos = bucketWallclockTimes[level].binarySearch(startTime);
+			if (originalPos==0) System.err.println("1This should probably not happen, otherwise I would be at the next level");
+			if (originalPos>0) {// i found something. Note that original pos will never be 0, otherwise i would go to the next level
+				while (bucketWallclockTimes[level].get(originalPos)==startTime) originalPos--; originalPos++; // find the very first element with this value
+			}
+
+			pos=originalPos;
+			if (originalPos<0) { // actual element not found, but i found something SMALLER
+				pos=-pos - 1 -1; // the second -1 is because i want to start from the element smaller than startTime
+				if (pos<0) {
+					System.err.println("2This should probably not happen, otherwise I would be at the next level!");
+					pos=0;
+				}
+				est+=pow*(bucketWallclockTimes[level].size()-pos-1);
+			} else
+				est+=pow*(bucketWallclockTimes[level].size()-pos);
+
+			if (level!=0) est+=(pow/2d); // add half of the last bucket
+			expiryTimeOfTheEstimate=findNextBucketWithDifferentTimeReturnTime(level, pos, bucketWallclockTimes[level].get(pos));
+			if ((expiryTimeOfTheEstimate==-1 && est>0) || originalPos>0)
+				expiryTimeOfTheEstimate=bucketWallclockTimes[level].get(pos);
+			if ((expiryTimeOfTheEstimate==-1 && est==0))
+				return new Pair(expiryTimeOfTheEstimate, est);
+			return new Pair(expiryTimeOfTheEstimate+queryLength, est);
+		} else { // empty level, ignore it  - not enough items have arrived to fill the SW yet
+			level--;
+			pos=0;
+			int expiryTimeOfTheEstimate = bucketWallclockTimes[level].get(0) + queryLength;
+			return new Pair(expiryTimeOfTheEstimate, est);
+		}
+	}
+
+	public double getEstimationRealtimeSlower(int startTime) {
+		double est=0;
+		int level=0;
+		while (bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
+			est+=Math.pow(2, level)*bucketWallclockTimes[level].size();
+			level++;
+		}
+		// at this level, i need to find the proper element
+		int originalPos = bucketWallclockTimes[level].binarySearch(startTime);
+		int pos=originalPos;
+		if (pos<0) pos=-pos-1;
+		if (pos==bucketWallclockTimes[level].size()) {
+			int levelBucketSize=(int)Math.pow(2, level);
+			if (bucketWallclockTimes[level].size()>0) est+=levelBucketSize/2;
+			return est;
+		} else {
+			if (originalPos<0)
+				pos--;
+			while (bucketWallclockTimes[level].get(pos)==startTime) pos--; pos++;// find the first element with this time.
+			int levelBucketSize=(int)Math.pow(2, level);
+			est+=(bucketWallclockTimes[level].size()-pos)*levelBucketSize;
+			if (levelBucketSize!=1) est+=levelBucketSize/2;
+			return est;
+		}
+	}
+
+	public double getEstimationRange(int len) {
+		int query = this.lastSyncedTime-len;
+		return getEstimationRealtime(query);
 	}
 	
 	int[] findNextBucket(int level, int position) { // return {level, position}
@@ -570,107 +501,12 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		}
 	}
 
-	public Pair getEstimationRealtimeWithExpiryTime(int startTime, int queryLength) {
-		double est=0;
-		int level=0;
-		int pow = 1;
-		if (bucketWallclockTimes[0].size()==0) return new Pair(-1, 0); // actually nothing will ever expire from am empty EH!
-		while (bucketWallclockTimes[level]!=null && bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
-			est+=pow*bucketWallclockTimes[level].size(); // these are the fully-covered rows!
-			level++;
-            pow*=2;
-		}
-		int pos;
-		if (level<numberOfLevels) { // non-empty level, add part of it!
-			int expiryTimeOfTheEstimate;
-			int originalPos = bucketWallclockTimes[level].binarySearch(startTime);
-			if (originalPos==0) System.err.println("1This should probably not happen, otherwise I would be at the next level");
-			if (originalPos>0) {// i found something. Note that original pos will never be 0, otherwise i would go to the next level
-				while (bucketWallclockTimes[level].get(originalPos)==startTime) originalPos--; originalPos++; // find the very first element with this value
-			}
-			
-			pos=originalPos;
-			if (originalPos<0) { // actual element not found, but i found something SMALLER
-				pos=-pos - 1 -1; // the second -1 is because i want to start from the element smaller than startTime
-				if (pos<0) {
-					System.err.println("2This should probably not happen, otherwise I would be at the next level!");
-					pos=0;
-				}
-				est+=pow*(bucketWallclockTimes[level].size()-pos-1);
-			} else 
-				est+=pow*(bucketWallclockTimes[level].size()-pos);
-
-			if (level!=0) est+=(pow/2d); // add half of the last bucket
-			expiryTimeOfTheEstimate=findNextBucketWithDifferentTimeReturnTime(level, pos, bucketWallclockTimes[level].get(pos));
-			if ((expiryTimeOfTheEstimate==-1 && est>0) || originalPos>0) 
-				expiryTimeOfTheEstimate=bucketWallclockTimes[level].get(pos);
-			if ((expiryTimeOfTheEstimate==-1 && est==0))
-				return new Pair(expiryTimeOfTheEstimate, est);
-			return new Pair(expiryTimeOfTheEstimate+queryLength, est);
-		} else { // empty level, ignore it  - not enough items have arrived to fill the SW yet
-			level--;
-			pos=0;
-			int expiryTimeOfTheEstimate = bucketWallclockTimes[level].get(0) + queryLength;
-			return new Pair(expiryTimeOfTheEstimate, est);
-		}
+	public double getMemoryUsage() {
+		return getRequiredMemory();
 	}
 
-//	public IntDoubleTuple getEstimationRealtimeWithExpiration(int startTime) {
-//		this.prepareForQuerying();
-//		double est=0;
-//		int level=0;
-//		int pow = 1;
-//		while (bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
-////			est+=Math.pow(2, level)*bucketWallclockTimes[level].size();
-//			est+=pow*bucketWallclockTimes[level].size();
-//			level++;
-//            pow*=2;
-//		}
-//		// at this level, i need to find the proper element
-//		int originalPos = bucketWallclockTimes[level].binarySearch(startTime);
-//		int pos=originalPos;
-//		if (pos<0) pos=-pos-1;
-//		if (pos==bucketWallclockTimes[level].size()) {
-////			int levelBucketSize=(int)Math.pow(2, level);
-//			int levelBucketSize=pow;
-//			if (bucketWallclockTimes[level].size()>0) est+=levelBucketSize/2;
-//			return new IntDoubleTuple(-1,est);
-//		} else {
-//			if (originalPos<0) 
-//				pos--;
-//			while (bucketWallclockTimes[level].get(pos)==startTime) pos--; pos++;// find the first element with this time.
-////			int levelBucketSize=(int)Math.pow(2, level);
-//			int levelBucketSize=pow;
-//			est+=(bucketWallclockTimes[level].size()-pos)*levelBucketSize;
-//			if (levelBucketSize!=1) est+=levelBucketSize/2;
-//			return new IntDoubleTuple(-1,est);
-//		}
-//	}
-
-	public double getEstimationRealtimeSlower(int startTime) {
-		double est=0;
-		int level=0;
-		while (bucketWallclockTimes[level].size()>0 && bucketWallclockTimes[level].getFirst()>=startTime) {
-			est+=Math.pow(2, level)*bucketWallclockTimes[level].size();
-			level++;
-		}
-		// at this level, i need to find the proper element
-		int originalPos = bucketWallclockTimes[level].binarySearch(startTime);
-		int pos=originalPos;
-		if (pos<0) pos=-pos-1;
-		if (pos==bucketWallclockTimes[level].size()) {
-			int levelBucketSize=(int)Math.pow(2, level);
-			if (bucketWallclockTimes[level].size()>0) est+=levelBucketSize/2;
-			return est;
-		} else {
-			if (originalPos<0) 
-				pos--;
-			while (bucketWallclockTimes[level].get(pos)==startTime) pos--; pos++;// find the first element with this time.
-			int levelBucketSize=(int)Math.pow(2, level);
-			est+=(bucketWallclockTimes[level].size()-pos)*levelBucketSize;
-			if (levelBucketSize!=1) est+=levelBucketSize/2;
-			return est;
-		}
+	public double getMaxRequiredMemory() {
+		return getRequiredMemory();
 	}
 
 	// required memory in Kbytes!
@@ -694,11 +530,6 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		return mem/8d/1024d; // kbytes
 	}
 	
-	public double getMaxRequiredMemory() {
-//		return getRequiredMemory()/(double)numberOfBuckets*(double)maxNumberOfBuckets;
-		return getRequiredMemory();
-	}
-	
 	public void cloneForQuerying() {
 	}
 
@@ -707,10 +538,7 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 		// TODO Auto-generated method stub
 		
 	}
-	public double getEstimationRange(int len) {
-		int query = this.lastSyncedTime-len;
-		return getEstimationRealtime(query);
-	}
+
 	@Override
 	public int getLastUpdateTime() {
 		if (numberOfLevels>0)
@@ -721,5 +549,25 @@ public class ExponentialHistogramCircularInt implements slidingwindow {
 	@Override
 	public double getEpsilon() {
 		return epsilon;
+	}
+
+	public void reset() {
+		// Clear bucketWallclockTimes array
+		for (cBufferInt bucketWallclockTime : bucketWallclockTimes) {
+			if (bucketWallclockTime != null) {
+				bucketWallclockTime.clear();
+			}
+		}
+		// Reset other internal state variables to initial values
+		currentRealtime = 0;
+		lastOneUpdate = 0;
+		numberOfBuckets = 0;
+		numberOfLevels = 1; // Assuming minimum one level exists
+		epsilon = 0;
+		k = 0;
+		halfk = 0;
+		windowSize = 0;
+		maxEvents = 0;
+		lastSyncedTime = 0;
 	}
 }
