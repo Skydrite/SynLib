@@ -29,6 +29,7 @@
         <module>Randomized-Waves</module>
         <module>SpatialSketch</module>
         <module>Two-LHS</module>
+        <module>common</module>
     </modules>
 
     <!-- Define common dependencies for all modules -->

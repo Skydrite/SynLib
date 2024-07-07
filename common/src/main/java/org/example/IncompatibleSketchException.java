@@ -1,4 +1,4 @@
-package src.main.java.com.synopses;
+package org.example;
 
 public class IncompatibleSketchException extends Exception {
     public IncompatibleSketchException(String message) {

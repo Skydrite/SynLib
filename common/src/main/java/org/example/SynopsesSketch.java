@@ -1,4 +1,4 @@
-package src.main.java.com.synopses;
+package org.example;
 
 import java.io.Serializable;
 import java.util.HashMap;

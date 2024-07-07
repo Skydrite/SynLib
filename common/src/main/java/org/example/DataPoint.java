@@ -1,4 +1,4 @@
-package src.main.java.com.synopses;
+package org.example;
 
 public interface DataPoint<T> {
     T getValue();
