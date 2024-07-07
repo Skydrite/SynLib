@@ -13,6 +13,8 @@ public class DataPointTest {
 
         dataPoint.setValue(100);
         assertEquals(Integer.valueOf(100), dataPoint.getValue());
+
+        System.out.println("DataPointTest.testIntegerDataPoint passed.");
     }
 
     @Test
@@ -22,6 +24,8 @@ public class DataPointTest {
 
         dataPoint.setValue(2.71);
         assertEquals(Double.valueOf(2.71), dataPoint.getValue());
+
+        System.out.println("DataPointTest.testDoubleDataPoint passed.");
     }
 
     @Test
@@ -31,5 +35,7 @@ public class DataPointTest {
 
         dataPoint.setValue("World");
         assertEquals("World", dataPoint.getValue());
+
+        System.out.println("DataPointTest.testStringDataPoint passed.");
     }
 }

@@ -1,10 +1,15 @@
 package org.example.countmin;
 
 
-import java.util.Arrays;
-import java.util.Random;
+import org.example.DataPoint;
+import org.example.IncompatibleSketchException;
+import org.example.SynopsesSketch;
+import org.example.countmin.hash.*;
 
-public class CountMin {
+import java.util.Arrays;
+import java.util.HashMap;
+
+public class CountMin<T> implements SynopsesSketch<T, Integer> {
 
     //ArrayList<ArrayList<Sample>> CM = new ArrayList<>();
 
@@ -15,20 +20,32 @@ public class CountMin {
     int attr;
     int width;
     int depth;
-    int seed;
-    final Random rn = new Random();
+    private HashFunctions<T> hashFunctions;
 
-    public CountMin(int width, int depth, int seed) {
-        CM = new int[depth][width];
-        this.width = width;
-        this.depth = depth;
-        this.seed = seed;
-        //this.hashFunctions = new ArrayList<UniformHash>(depth);
-        initSketch();
+    @Override
+    public void init(HashMap<String, Float> sketchParametersMap, String dataType) {
+        this.width = sketchParametersMap.get("width").intValue();
+        this.depth = sketchParametersMap.get("depth").intValue();
+        HashFunctionsBase.setSeed(sketchParametersMap.get("seed").intValue());
+        // Set up hash function based on data type
+        this.hashFunctions = createHashFunctions(dataType);
+
+        this.CM = new int[depth][width];
+
+        initCountMin();
     }
 
+    public void setHashFunctions(HashFunctions<T> hashFunctions) {
+        this.hashFunctions = hashFunctions;
+    }
 
-    public void initSketch() {
+    @SuppressWarnings("unchecked")
+    private HashFunctions<T> createHashFunctions(String dataType) {
+        HashFunctions<?> hashFunction = HashFunctionsFactory.createHashFunctions(dataType);
+        return (HashFunctions<T>) hashFunction;
+    }
+
+    private void initCountMin() {
         for (int j = 0; j < depth; j++) {
             for (int i = 0; i < width; i++) {
                 CM[j][i] = 0;
@@ -36,34 +53,27 @@ public class CountMin {
         }
     }
 
-    int[] hash(long attrValue, int depth, int width) {
-        int[] hash = new int[depth];
-        rn.setSeed(attrValue + seed);
-        for (int i = 0; i < depth; i++) hash[i] = rn.nextInt(width);
-        return hash;
-    }
-    public void add(int id, long attrValue, long hx) {
+    @Override
+    public void insert(DataPoint<T> dp) throws UnsupportedOperationException {
         // Test if all element in A and B are consistent
-        int[] hashes = hash(attrValue, depth, width);
+        int[] hashes = hashFunctions.hash(dp.getValue(), depth, width);
         for (int j = 0; j <depth; j++) {
             int w = hashes[j];
             CM[j][w] += 1; // Hash in Sample based on id
         }
     }
 
-    public int query(long attrValue) {
-        int[] hashes = hash(attrValue, depth,width);
+    @Override
+    public void insertBatch(DataPoint<T>[] dps) {
 
-        int[] result = new int[depth];
-        for (int j = 0; j < depth; j++) {
-            int w = hashes[j];
-            result[j] = CM[j][w];
-            //result.add(new DistinctSample(CM.get(j).get(w)));
-        }
-        Arrays.sort(result);
-        return result[0];
     }
 
+    @Override
+    public void insertStream(String endpoint) {
+
+    }
+
+    @Override
     public long getMemoryUsage() {
         long memoryUsage = 0;
         for (int j = 0; j <depth; j++) {
@@ -75,12 +85,73 @@ public class CountMin {
         return memoryUsage;
     }
 
+    @Override
+    public HashMap<String, Float> getConfig() {
+        return null;
+    }
+
+    @Override
+    public SynopsesSketch<T, Integer> merge(SynopsesSketch<T, Integer>[] other) throws IncompatibleSketchException {
+        // Check types of others
+        for (SynopsesSketch<T, Integer> tIntegerSynopsesSketch : other) {
+            if (!(tIntegerSynopsesSketch instanceof CountMin)) {
+                throw new IncompatibleSketchException("The sketches are not compatible (type)");
+            }
+        }
+        // Check width and depth
+        for (SynopsesSketch<T, Integer> tIntegerSynopsesSketch : other) {
+            if (this.width != ((CountMin<T>) tIntegerSynopsesSketch).width || this.depth != ((CountMin<T>) tIntegerSynopsesSketch).depth) {
+                throw new IncompatibleSketchException("The sketches are not compatible (size)");
+            }
+        }
+        // Check hash functions
+        for (SynopsesSketch<T, Integer> tIntegerSynopsesSketch : other) {
+            if (!this.hashFunctions.equals(((CountMin<T>) tIntegerSynopsesSketch).hashFunctions)) {
+                throw new IncompatibleSketchException("The sketches are not compatible (hash functions)");
+            }
+        }
+        CountMin<T> merged = this;
+        // Merge sketches
+        for (int j = 0; j < depth; j++) {
+            for (int i = 0; i < width; i++) {
+                for (SynopsesSketch<T, Integer> tIntegerSynopsesSketch : other) {
+                    CM[j][i] += ((CountMin<T>) tIntegerSynopsesSketch).CM[j][i];
+                }
+            }
+        }
+        return merged;
+    }
+
+    @Override
+    public Integer query(DataPoint<T> dp) {
+        int[] hashes = hashFunctions.hash(dp.getValue(), depth,width);
+
+        int[] result = new int[depth];
+        for (int j = 0; j < depth; j++) {
+            int w = hashes[j];
+            result[j] = CM[j][w];
+            //result.add(new DistinctSample(CM.get(j).get(w)));
+        }
+        Arrays.sort(result);
+        return result[0];
+    }
+
+    @Override
+    public Integer[] queryBatch(DataPoint<T>[] dps) {
+        // TODO: Implement
+        throw new UnsupportedOperationException();
+    }
+
     public void reset() {
         for (int j = 0; j < depth; j++) {
             for (int i = 0; i < width; i++) {
                 CM[j][i] = 0;
             }
         }
+    }
+
+    public HashFunctions<T> getHashFunctions() {
+        return hashFunctions;
     }
 
 
