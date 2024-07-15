@@ -1,5 +1,7 @@
 package org.example;
 
+import org.example.datapoint.DataPoint;
+import org.example.datapoint.GenericDataPoint;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
