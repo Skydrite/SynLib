@@ -10,7 +10,7 @@ import static org.junit.Assert.assertEquals;
 
 public class CountMinTest {
 
-    private CountMin<Long> countMin;
+    private CountMin countMin;
 
     @Before
     public void setUp() {
@@ -18,21 +18,18 @@ public class CountMinTest {
         parameters.put("width", 10f);
         parameters.put("depth", 5f);
         parameters.put("seed", 42f);
-        countMin = new CountMin<>();
+        countMin = new CountMin();
         countMin.init(parameters, "Long");
     }
 
     @Test
     public void testInsert() {
-        DataPoint<Long> dp1 = new GenericDataPoint<>(100L);
-        DataPoint<Long> dp2 = new GenericDataPoint<>(200L);
-
-        countMin.insert(dp1);
-        countMin.insert(dp2);
+        countMin.insertLong(100L);
+        countMin.insertLong(200L);
 
         // Expect the counts for these inserted elements to be 1
-        assertEquals(1, countMin.query(dp1).intValue());
-        assertEquals(1, countMin.query(dp2).intValue());
+        assertEquals(1, countMin.query(100L).intValue());
+        assertEquals(1, countMin.query(200L).intValue());
 
         System.out.println("CountMinTest.testInsert passed.");
     }
@@ -43,26 +40,23 @@ public class CountMinTest {
         parameters.put("width", 10f);
         parameters.put("depth", 5f);
         parameters.put("seed", 42f);
-        CountMin<Long> countMin1 = new CountMin<>();
+        CountMin countMin1 = new CountMin();
         countMin1.init(parameters, "Long");
 
-        CountMin<Long> countMin2 = new CountMin<>();
+        CountMin countMin2 = new CountMin();
         countMin2.init(parameters, "Long");
         // Ensure they have the same hash functions
         countMin2.setHashFunctions(countMin1.getHashFunctions());
 
-        DataPoint<Long> dp1 = new GenericDataPoint<>(100L);
-        DataPoint<Long> dp2 = new GenericDataPoint<>(200L);
+        countMin1.insertLong(100L);
+        countMin2.insertLong(200L);
 
-        countMin1.insert(dp1);
-        countMin2.insert(dp2);
-
-        CountMin<Long>[] countMinsToCombine = new CountMin[]{countMin2};
-        CountMin<Long> mergedSketch = (CountMin<Long>) countMin1.merge(countMinsToCombine);
+        CountMin[] countMinsToCombine = new CountMin[]{countMin2};
+        CountMin mergedSketch = (CountMin) countMin1.merge(countMinsToCombine);
 
         // Expect the counts for these inserted elements to be larger or equal to 1 after merging
-        assert(mergedSketch.query(dp1) >= 1);
-        assert(mergedSketch.query(dp2) >= 1);
+        assert(mergedSketch.query(100L) >= 1);
+        assert(mergedSketch.query(200L) >= 1);
 
         System.out.println("CountMinTest.testMerge passed.");
     }
