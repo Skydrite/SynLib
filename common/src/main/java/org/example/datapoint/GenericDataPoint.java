@@ -1,4 +1,4 @@
-package org.example;
+package org.example.datapoint;
 
 public class GenericDataPoint<T> implements DataPoint<T> {
 

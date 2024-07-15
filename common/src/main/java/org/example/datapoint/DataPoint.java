@@ -1,4 +1,4 @@
-package org.example;
+package org.example.datapoint;
 
 public interface DataPoint<T> {
     T getValue();
